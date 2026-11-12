@@ -65,7 +65,7 @@ const MODERATE=false; // true = a drawing only shows once you set ok:true on it 
 let db=null;
 try{if(window.firebase&&firebase.database){firebase.initializeApp(FB_CONFIG);db=firebase.database();}}catch(e){db=null;}
 /* ---------- VALUE RUSH: 3-screen tap race (question TV + 2 player touch screens) ---------- */
-const RUSH_WIN=5,RUSH_TIME=10000,RUSH_NEXT=6000;
+const RUSH_WIN=3,RUSH_TIME=10000,RUSH_NEXT=6000;
 /* ---------- sound (Web Audio, no files) ---------- */
 const SFX=(()=>{let ctx=null,muted=false;try{muted=localStorage.getItem('vr_mute')==='1';}catch(e){}
   const unlock=()=>{try{if(!ctx)ctx=new(window.AudioContext||window.webkitAudioContext)();if(ctx.state==='suspended')ctx.resume();}catch(e){}};
