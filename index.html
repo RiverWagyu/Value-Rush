@@ -35,6 +35,7 @@ body.rushMode{padding:0;overflow:hidden;background:#0B1238;-webkit-user-select:n
 .rtScore{display:flex;justify-content:center;gap:12vw;font:800 4.6vw Poppins}
 .rtScore div{padding:.4vw 3vw;border-radius:1.6vw;border:.35vw solid transparent}
 .rtScore .w{border-color:#FFE58A;background:rgba(255,226,138,.12)}
+.rtVerdict{font:800 8vw Poppins}.rtVerdict.good{color:#5CE08A}.rtVerdict.bad{color:#FF6B6B}
 .rtLinks a{color:#9FB6D9;font:600 15px Inter}
 </style>
 </head>
@@ -60,7 +61,7 @@ const MODERATE=false; // true = a drawing only shows once you set ok:true on it 
 let db=null;
 try{if(window.firebase&&firebase.database){firebase.initializeApp(FB_CONFIG);db=firebase.database();}}catch(e){db=null;}
 /* ---------- VALUE RUSH: 3-screen tap race (question TV + 2 player touch screens) ---------- */
-const RUSH_WIN=5,RUSH_TIME=12000;
+const RUSH_WIN=5,RUSH_TIME=5000,RUSH_NEXT=3000;
 const rs=()=>db&&db.ref('rush/state');
 function rushShell(html){app.innerHTML='';const v=el(html);app.appendChild(v);return v;}
 function renderRushMenu(){document.body.classList.add('rushMode');
@@ -79,7 +80,8 @@ function renderRushPlayer(pid){
     tiles.forEach(b=>b.disabled=!playing||locked);
     if(!db)msg.textContent='Not connected to the game';
     else if(playing)msg.textContent=locked?'Wrong letter! Wait a moment\u2026':'GO! Tap the matching letter';
-    else if(st.status==='won')msg.textContent=st.winner===pid?'You were first! '+(st.winMs/1000).toFixed(2)+' s':who(st.winner)+' was first';
+    else if(st.status==='won')msg.textContent=st.winner===pid?'Correct! You were first \u00B7 '+(st.winMs/1000).toFixed(2)+' s':who(st.winner)+' got it first';
+    else if(st.status==='wrong')msg.textContent=st.wrongBy===pid?'Not correct':who(st.wrongBy)+' tapped the wrong letter';
     else if(st.status==='timeout')msg.textContent="Time's up. It was "+V[st.q][0]+' \u00B7 '+V[st.q][1];
     else if(st.status==='final')msg.textContent=(st.winner===pid?'YOU WIN THE GAME!':who(st.winner)+' wins the game');
     else msg.textContent='Waiting for the question\u2026';}
@@ -87,11 +89,12 @@ function renderRushPlayer(pid){
     if(n.status==='playing'&&n.round!==seenRound){seenRound=n.round;seen=performance.now();locked=false;}
     st=n;paint();});
   tiles.forEach((b,i)=>b.addEventListener('pointerdown',e=>{e.preventDefault();
-    if(st.status!=='playing'||locked||!db)return;
+    if(st.status!=='playing'||!db)return;
     const ms=Math.round(performance.now()-seen),round=st.round;
-    if(i!==st.q){locked=true;paint();setTimeout(()=>{locked=false;paint();},1500);return;}
     rs().transaction(cur=>{if(!cur||cur.status!=='playing'||cur.round!==round)return;
-      cur.status='won';cur.winner=pid;cur.winMs=ms;cur.scores=cur.scores||{p1:0,p2:0};cur.scores[pid]=(cur.scores[pid]||0)+1;return cur;});}));
+      if(i===cur.q){cur.status='won';cur.winner=pid;cur.winMs=ms;cur.scores=cur.scores||{p1:0,p2:0};cur.scores[pid]=(cur.scores[pid]||0)+1;}
+      else{cur.status='wrong';cur.wrongBy=pid;cur.winMs=ms;}
+      return cur;});}));
   paint();}
 function renderRushTV(){
   const v=rushShell(`<div class="rushTV"><div class="rtHead"><span>VALUE RUSH</span><small id="rd"></small></div><div class="rtMain" id="mn"></div><div class="rtScore" id="sb"></div></div>`);
@@ -102,22 +105,24 @@ function renderRushTV(){
   function nextRound(b){const used=(b.used||[]).slice();let pool=V.map((_,i)=>i).filter(i=>!used.includes(i));
     if(!pool.length){used.length=0;pool=V.map((_,i)=>i);}
     const q=pool[Math.floor(Math.random()*pool.length)];used.push(q);
-    rs().set({round:Date.now(),n:(b.n||0)+1,q,status:'playing',winner:null,winMs:null,scores:b.scores||{p1:0,p2:0},used});}
+    rs().set({round:Date.now(),n:(b.n||0)+1,q,status:'playing',winner:null,wrongBy:null,winMs:null,scores:b.scores||{p1:0,p2:0},used});}
   function newGame(){nextRound({n:0,scores:{p1:0,p2:0},used:[]});}
   function draw(){const s=st.scores||{p1:0,p2:0};
     rd.textContent=st.n?('ROUND '+st.n+' \u00B7 FIRST TO '+RUSH_WIN):('FIRST TO '+RUSH_WIN+' WINS');
     sb.innerHTML='<div class="'+(st.status==='won'&&st.winner==='p1'||st.status==='final'&&st.winner==='p1'?'w':'')+'" style="color:#49B6FF">P1 \u00B7 '+(s.p1||0)+'</div><div class="'+(st.status==='won'&&st.winner==='p2'||st.status==='final'&&st.winner==='p2'?'w':'')+'" style="color:#FF9A3D">P2 \u00B7 '+(s.p2||0)+'</div>';
     if(!db){mn.innerHTML='<div class="rtQ">Not connected to the game server.</div>';return;}
-    if(st.status==='playing'){mn.innerHTML='<div class="rtLabel">WHICH VALUE?</div><div class="rtQ">\u201C'+V[st.q][3]+'\u201D</div><div class="rtBar"><i id="bar" style="transition:width '+RUSH_TIME+'ms linear"></i></div><div class="rtLabel" style="color:#9FB6D9">Tap the matching letter on your screen</div>';
+    if(st.status==='playing'){mn.innerHTML='<div class="rtLabel">WHICH VALUE?</div><div class="rtQ">\u201C'+V[st.q][3]+'\u201D</div><div class="rtBar"><i id="bar" style="transition:width '+RUSH_TIME+'ms linear"></i></div><div class="rtLabel" style="color:#9FB6D9">Tap the matching letter before time runs out</div>';
       const bar=mn.querySelector('#bar');requestAnimationFrame(()=>requestAnimationFrame(()=>{bar.style.width='0%';}));}
-    else if(st.status==='won'||st.status==='timeout'){const c=V[st.q][2];
-      mn.innerHTML='<div class="rtBig" style="background:'+c+'">'+V[st.q][0]+'</div><div class="rtQ" style="font-size:3vw">'+V[st.q][1]+'</div><div class="rtLabel">'+(st.status==='won'?who(st.winner)+' \u00B7 '+(st.winMs/1000).toFixed(2)+' s':"TIME'S UP")+'</div>';}
+    else if(st.status==='won'){const c=V[st.q][2];
+      mn.innerHTML='<div class="rtVerdict good">CORRECT!</div><div style="display:flex;align-items:center;gap:2vw"><div class="rtBig" style="background:'+c+';width:8vw;height:8vw;font-size:6vw">'+V[st.q][0]+'</div><div class="rtQ" style="font-size:3vw;text-align:left">'+V[st.q][1]+'</div></div><div class="rtLabel">'+who(st.winner)+' \u00B7 '+(st.winMs/1000).toFixed(2)+' s</div>';}
+    else if(st.status==='wrong'){mn.innerHTML='<div class="rtVerdict bad">NOT CORRECT</div><div class="rtLabel">'+who(st.wrongBy)+' tapped the wrong letter</div><div class="rtLabel" style="color:#9FB6D9">Answer: '+V[st.q][0]+' \u00B7 '+V[st.q][1]+'</div>';}
+    else if(st.status==='timeout'){mn.innerHTML='<div class="rtVerdict bad" style="color:#FFD23F">TIME\'S UP</div><div class="rtLabel" style="color:#9FB6D9">Answer: '+V[st.q][0]+' \u00B7 '+V[st.q][1]+'</div>';}
     else if(st.status==='final'){mn.innerHTML='<div class="rtLabel">GAME OVER</div><div class="rtQ" style="font-size:5vw">'+who(st.winner)+' WINS!</div><button class="rtBtn" id="go">PLAY AGAIN</button>';mn.querySelector('#go').onclick=newGame;}
     else{mn.innerHTML='<div class="rtQ" style="font-size:4.4vw">Smash the value that matches the meaning</div><div class="rtLabel" style="color:#9FB6D9">Open this page with #p1 on iPad 1 and #p2 on iPad 2</div><button class="rtBtn" id="go">START</button>';mn.querySelector('#go').onclick=newGame;}}
   if(rs())rs().on('value',s=>{st=s.val()||{status:'idle'};clr();draw();
     if(st.status==='playing'){const r=st.round;timers.push(setTimeout(()=>{rs().transaction(c=>{if(c&&c.status==='playing'&&c.round===r){c.status='timeout';return c;}});},RUSH_TIME));}
-    if(st.status==='won'||st.status==='timeout'){timers.push(setTimeout(()=>{
-      if(st.status==='won'&&(st.scores[st.winner]||0)>=RUSH_WIN)rs().update({status:'final'});else nextRound(st);},3800));}});
+    if(st.status==='won'||st.status==='wrong'||st.status==='timeout'){timers.push(setTimeout(()=>{
+      if(st.status==='won'&&(st.scores[st.winner]||0)>=RUSH_WIN)rs().update({status:'final'});else nextRound(st);},RUSH_NEXT));}});
   else draw();}
 
 
