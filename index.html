@@ -82,7 +82,15 @@ const SFX=(()=>{let ctx=null,muted=false;try{muted=localStorage.getItem('vr_mute
     time:v=>{tone(440,0,.18,'triangle',.22*v);tone(330,.18,.18,'triangle',.22*v);tone(220,.36,.3,'triangle',.22*v);},
     win:v=>{[523,523,523,659,784,659,784,1047].forEach((f,i)=>tone(f,i*.13,.24,'triangle',.28*v));},
     tap:v=>tone(520,0,.05,'sine',.12*v)};
-  return{play:(n,v)=>{try{unlock();S[n](v==null?1:v);}catch(e){}},
+  let mt=null,step=0;
+  const CH=[[220,261.6,329.6],[174.6,220,261.6],[261.6,329.6,392],[196,246.9,293.7]],BASS=[110,87.3,130.8,98];
+  function beat(){if(muted||!ctx)return;const bar=Math.floor(step/8)%4,i=step%8,c=CH[bar];
+    tone(c[[0,1,2,1,0,1,2,1][i]]*2,0,.2,'triangle',.05);
+    if(i%4===0)tone(BASS[bar],0,.42,'sine',.09);
+    if(i%2===0)tone(8000,0,.03,'square',.012);
+    step++;}
+  function music(on){if(on&&!mt){step=0;unlock();mt=setInterval(beat,250);}else if(!on&&mt){clearInterval(mt);mt=null;}}
+  return{music,play:(n,v)=>{try{unlock();S[n](v==null?1:v);}catch(e){}},
     get muted(){return muted},toggle(){muted=!muted;try{localStorage.setItem('vr_mute',muted?'1':'0');}catch(e){}return muted;}};})();
 function muteBtn(b){const f=()=>{b.textContent=SFX.muted?'🔇':'🔊';};f();b.onclick=()=>{SFX.toggle();f();SFX.play('tap');};}
 const rs=()=>db&&db.ref('rush/state');
@@ -156,6 +164,7 @@ function renderRushTV(){
     else{mn.innerHTML='<div class="rtQ" style="font-size:4.4vw">Smash the value that matches the meaning</div><div class="rtLabel" style="color:#9FB6D9">Player 1 opens #p1 &middot; Player 2 opens #p2</div><button class="rtBtn" id="go">START</button>';mn.querySelector('#go').onclick=newGame;}}
   if(rs())rs().on('value',s=>{st=s.val()||{status:'idle'};clr();draw();
     clearInterval(tk);
+    SFX.music(['playing','won','wrong','timeout'].includes(st.status));
     const k=st.round+'|'+st.status;
     if(k!==lastKey){lastKey=k;
       if(st.status==='playing')SFX.play('ask');
