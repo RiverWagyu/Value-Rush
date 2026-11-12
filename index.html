@@ -37,6 +37,7 @@ body.rushMode{padding:0;overflow:hidden;background:#0B1238;-webkit-user-select:n
 .rtScore .w{border-color:#FFE58A;background:rgba(255,226,138,.12)}
 .rtVerdict{font:800 8vw Poppins}.rtVerdict.good{color:#5CE08A}.rtVerdict.bad{color:#FF6B6B}
 .rtReset{background:transparent;color:#C2CCE4;border:.2vw solid rgba(255,255,255,.35);border-radius:.8vw;padding:.5vw 1.4vw;font:700 1.3vw Poppins;letter-spacing:.2vw;cursor:pointer}.rtReset:active{background:rgba(255,255,255,.15)}
+.rtMute{background:transparent;border:0;font-size:2vw;cursor:pointer;color:#fff;padding:0 .6vw}.rpTop .rtMute{font-size:26px}
 .rtLinks a{color:#9FB6D9;font:600 15px Inter}
 </style>
 </head>
@@ -65,6 +66,25 @@ let db=null;
 try{if(window.firebase&&firebase.database){firebase.initializeApp(FB_CONFIG);db=firebase.database();}}catch(e){db=null;}
 /* ---------- VALUE RUSH: 3-screen tap race (question TV + 2 player touch screens) ---------- */
 const RUSH_WIN=5,RUSH_TIME=10000,RUSH_NEXT=6000;
+/* ---------- sound (Web Audio, no files) ---------- */
+const SFX=(()=>{let ctx=null,muted=false;try{muted=localStorage.getItem('vr_mute')==='1';}catch(e){}
+  const unlock=()=>{try{if(!ctx)ctx=new(window.AudioContext||window.webkitAudioContext)();if(ctx.state==='suspended')ctx.resume();}catch(e){}};
+  ['pointerdown','keydown','touchstart'].forEach(ev=>addEventListener(ev,unlock,{passive:true}));
+  function tone(f,t0,d,type,vol,f2){if(!ctx||muted)return;const o=ctx.createOscillator(),g=ctx.createGain(),t=ctx.currentTime+t0;
+    o.type=type||'sine';o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.015);g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    o.connect(g);g.connect(ctx.destination);o.start(t);o.stop(t+d+0.05);}
+  const S={
+    ask:v=>{tone(660,0,.16,'sine',.25*v);tone(880,.12,.22,'sine',.25*v);},
+    tick:v=>tone(1000,0,.06,'square',.08*v),
+    good:v=>{[523,659,784,1047].forEach((f,i)=>tone(f,i*.09,.28,'triangle',.28*v));},
+    bad:v=>{tone(180,0,.35,'sawtooth',.2*v,110);},
+    time:v=>{tone(440,0,.18,'triangle',.22*v);tone(330,.18,.18,'triangle',.22*v);tone(220,.36,.3,'triangle',.22*v);},
+    win:v=>{[523,523,523,659,784,659,784,1047].forEach((f,i)=>tone(f,i*.13,.24,'triangle',.28*v));},
+    tap:v=>tone(520,0,.05,'sine',.12*v)};
+  return{play:(n,v)=>{try{unlock();S[n](v==null?1:v);}catch(e){}},
+    get muted(){return muted},toggle(){muted=!muted;try{localStorage.setItem('vr_mute',muted?'1':'0');}catch(e){}return muted;}};})();
+function muteBtn(b){const f=()=>{b.textContent=SFX.muted?'🔇':'🔊';};f();b.onclick=()=>{SFX.toggle();f();SFX.play('tap');};}
 const rs=()=>db&&db.ref('rush/state');
 function rushShell(html){app.innerHTML='';const v=el(html);app.appendChild(v);return v;}
 function renderRushMenu(){document.body.classList.add('rushMode');
@@ -73,7 +93,9 @@ function renderRushMenu(){document.body.classList.add('rushMode');
    <div class="rtLinks">Open one link per screen:<br><a href="#tv">Question screen</a><br><a href="#p1">Player 1</a><br><a href="#p2">Player 2</a><br><span style="color:#9FB6D9;font-size:14px">${base}#tv</span></div></div>`);}
 function renderRushPlayer(pid){
   const col=pid==='p1'?'#49B6FF':'#FF9A3D',name=pid==='p1'?'PLAYER 1':'PLAYER 2';
-  const v=rushShell(`<div class="rushP" style="--pc:${col}"><div class="rpTop"><b>${name}</b><span id="sc"></span></div><div class="rpMsg" id="msg">Waiting for the question…</div><div class="rpGrid" id="gr"></div></div>`);
+  const v=rushShell(`<div class="rushP" style="--pc:${col}"><div class="rpTop"><b>${name}</b><span><span id="sc"></span> <button class="rtMute" id="mt"></button></span></div><div class="rpMsg" id="msg">Waiting for the question…</div><div class="rpGrid" id="gr"></div></div>`);
+  muteBtn(v.querySelector('#mt'));
+  let lastKey='';
   const gr=v.querySelector('#gr'),msg=v.querySelector('#msg'),sc=v.querySelector('#sc');
   const tiles=V.map(([L,n,c],i)=>{const b=document.createElement('button');b.className='rpTile';b.style.background=c;b.textContent=L;b.setAttribute('aria-label',L);gr.appendChild(b);return b;});
   let st={},seen=0,seenRound=-1,locked=false;
@@ -90,9 +112,16 @@ function renderRushPlayer(pid){
     else msg.textContent='Waiting for the question\u2026';}
   if(rs())rs().on('value',s=>{const n=s.val()||{};
     if(n.status==='playing'&&n.round!==seenRound){seenRound=n.round;seen=performance.now();locked=false;}
+    const k=n.round+'|'+n.status;
+    if(k!==lastKey){lastKey=k;
+      if(n.status==='playing')SFX.play('ask',.5);
+      else if(n.status==='won'&&n.winner===pid)SFX.play('good',.8);
+      else if(n.status==='wrong'&&n.wrongBy===pid)SFX.play('bad',.8);
+      else if(n.status==='final'&&n.winner===pid)SFX.play('win',.8);}
     st=n;paint();});
   tiles.forEach((b,i)=>b.addEventListener('pointerdown',e=>{e.preventDefault();
     if(st.status!=='playing'||!db)return;
+    SFX.play('tap');
     const ms=Math.round(performance.now()-seen),round=st.round;
     rs().transaction(cur=>{if(!cur||cur.status!=='playing'||cur.round!==round)return;
       if(i===cur.q){cur.status='won';cur.winner=pid;cur.winMs=ms;cur.scores=cur.scores||{p1:0,p2:0};cur.scores[pid]=(cur.scores[pid]||0)+1;}
@@ -100,7 +129,7 @@ function renderRushPlayer(pid){
       return cur;});}));
   paint();}
 function renderRushTV(){
-  const v=rushShell(`<div class="rushTV"><div class="rtHead"><span>VALUE RUSH</span><span style="display:flex;align-items:center;gap:2vw"><small id="rd"></small><button class="rtReset" id="rst">RESET</button></span></div><div class="rtMain" id="mn"></div><div class="rtScore" id="sb"></div></div>`);
+  const v=rushShell(`<div class="rushTV"><div class="rtHead"><span>VALUE RUSH</span><span style="display:flex;align-items:center;gap:2vw"><small id="rd"></small><button class="rtMute" id="mt"></button><button class="rtReset" id="rst">RESET</button></span></div><div class="rtMain" id="mn"></div><div class="rtScore" id="sb"></div></div>`);
   const mn=v.querySelector('#mn'),sb=v.querySelector('#sb'),rd=v.querySelector('#rd');
   let st={status:'idle'},timers=[];
   const clr=()=>{timers.forEach(clearTimeout);timers=[];};
@@ -110,7 +139,8 @@ function renderRushTV(){
     const q=pool[Math.floor(Math.random()*pool.length)];used.push(q);
     rs().set({round:Date.now(),n:(b.n||0)+1,q,status:'playing',winner:null,wrongBy:null,winMs:null,scores:b.scores||{p1:0,p2:0},used});}
   function resetGame(){clr();rs().set({status:'idle',scores:{p1:0,p2:0},used:[],n:0,round:Date.now()});}
-  v.querySelector('#rst').onclick=resetGame;
+  v.querySelector('#rst').onclick=resetGame;muteBtn(v.querySelector('#mt'));
+  let lastKey='',tk=null;
   function newGame(){nextRound({n:0,scores:{p1:0,p2:0},used:[]});}
   function draw(){const s=st.scores||{p1:0,p2:0};
     rd.textContent=st.n?('ROUND '+st.n+' \u00B7 FIRST TO '+RUSH_WIN):('FIRST TO '+RUSH_WIN+' WINS');
@@ -125,6 +155,15 @@ function renderRushTV(){
     else if(st.status==='final'){mn.innerHTML='<div class="rtLabel">GAME OVER</div><div class="rtQ" style="font-size:5vw">'+who(st.winner)+' WINS!</div><button class="rtBtn" id="go">PLAY AGAIN</button>';mn.querySelector('#go').onclick=newGame;}
     else{mn.innerHTML='<div class="rtQ" style="font-size:4.4vw">Smash the value that matches the meaning</div><div class="rtLabel" style="color:#9FB6D9">Player 1 opens #p1 &middot; Player 2 opens #p2</div><button class="rtBtn" id="go">START</button>';mn.querySelector('#go').onclick=newGame;}}
   if(rs())rs().on('value',s=>{st=s.val()||{status:'idle'};clr();draw();
+    clearInterval(tk);
+    const k=st.round+'|'+st.status;
+    if(k!==lastKey){lastKey=k;
+      if(st.status==='playing')SFX.play('ask');
+      else if(st.status==='won')SFX.play('good');
+      else if(st.status==='wrong')SFX.play('bad');
+      else if(st.status==='timeout')SFX.play('time');
+      else if(st.status==='final')SFX.play('win');}
+    if(st.status==='playing'){const t0=Date.now(),r0=st.round;tk=setInterval(()=>{const left=RUSH_TIME-(Date.now()-t0);if(left<=3000&&left>0)SFX.play('tick');},1000);}
     if(st.status==='playing'){const r=st.round;timers.push(setTimeout(()=>{rs().transaction(c=>{if(c&&c.status==='playing'&&c.round===r){c.status='timeout';return c;}});},RUSH_TIME));}
     if(st.status==='won'||st.status==='wrong'||st.status==='timeout'){timers.push(setTimeout(()=>{
       if(st.status==='won'&&(st.scores[st.winner]||0)>=RUSH_WIN)rs().update({status:'final'});else nextRound(st);},RUSH_NEXT));}});
