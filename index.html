@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Value Rush</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+:root{color-scheme:dark}
+html,body{margin:0;height:100%}
+body{background:#0B1238;color:#FFF8E8;font-family:Inter,system-ui,sans-serif}
+h1{font-family:Poppins,Inter,sans-serif;margin:0}
+/* ---- Value Rush (3-screen tap race) ---- */
+body.rushMode{padding:0;overflow:hidden;background:#0B1238;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.rushP{height:100vh;height:100dvh;display:flex;flex-direction:column;gap:2vh;padding:max(2vh,env(safe-area-inset-top,0px)) max(2.5vw,env(safe-area-inset-right,0px)) max(2vh,env(safe-area-inset-bottom,0px)) max(2.5vw,env(safe-area-inset-left,0px));box-sizing:border-box;border-top:12px solid var(--pc)}
+.rpTop{display:flex;justify-content:space-between;align-items:baseline;font:800 clamp(22px,4vh,40px) Poppins;color:var(--pc)}
+.rpTop span{font:700 clamp(16px,2.6vh,26px) Poppins;color:#C2CCE4}
+.rpMsg{font:700 clamp(18px,3vh,30px) Poppins;color:#fff;text-align:center;min-height:1.3em}
+.rpGrid{flex:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));gap:2vmin}
+.rpTile{border:none;border-radius:3vmin;color:#12305C;font:800 min(20vw,20vh)/1 Poppins;box-shadow:inset 0 -1.4vmin 0 rgba(0,0,0,.28);touch-action:manipulation;cursor:pointer;padding:0;-webkit-tap-highlight-color:transparent}
+.rpTile:active:not(:disabled){transform:scale(.96);filter:brightness(1.15)}
+.rpTile:disabled{opacity:.38;cursor:default}
+.rushTV{height:100vh;height:100dvh;display:flex;flex-direction:column;padding:2.4vw 3.4vw;box-sizing:border-box;color:#fff;background:radial-gradient(120% 90% at 50% 0%,#17306b 0%,#0B1238 70%)}
+.rtHead{display:flex;justify-content:space-between;align-items:baseline;font:800 2.6vw Poppins;letter-spacing:.1vw}
+.rtHead small{font:600 1.3vw Inter;color:#FFD23F;letter-spacing:.4vw}
+.rtMain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:2.2vw}
+.rtLabel{font:800 1.6vw Poppins;color:#FFD23F;letter-spacing:.5vw}
+.rtQ{font:600 3.6vw/1.28 Poppins;max-width:80vw}
+.rtBar{width:70vw;height:1.2vw;background:rgba(255,255,255,.12);border-radius:1vw;overflow:hidden}
+.rtBar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#3DBB5D,#FFD23F,#F0483E)}
+.rtBig{width:14vw;height:14vw;border-radius:2vw;display:flex;align-items:center;justify-content:center;font:800 10vw/1 Poppins;color:#12305C}
+.rtBtn{background:#FFD23F;color:#12305C;border:none;border-radius:1.4vw;padding:1.2vw 3.6vw;font:800 2.2vw Poppins;cursor:pointer}
+.rtScore{display:flex;justify-content:center;gap:12vw;font:800 4.6vw Poppins}
+.rtScore div{padding:.4vw 3vw;border-radius:1.6vw;border:.35vw solid transparent}
+.rtScore .w{border-color:#FFE58A;background:rgba(255,226,138,.12)}
+.rtLinks a{color:#9FB6D9;font:600 15px Inter}
+</style>
+</head>
+<body class="rushMode">
+<div id="app"></div>
+<script>
+const V=[["M","Mastery","#4F7BFF","MUIC is a culture of mastery where people always pursue excellence in their work, in themselves, and in their environment."],
+["A","Altruism","#2DBE7B","MUIC is a culture of altruism where our ultimate value is to expand people's potential, enrich their lives, and help them shape a sustainable future."],
+["H","Harmony","#1FC4D6","MUIC is a culture of harmony where people work together and interact with one another with peace, positivity, and pleasantness."],
+["I","Integrity","#A974FF","MUIC is a culture of integrity where responsibility, fairness, and moral courage are integrated into the way we work and the way we treat one another."],
+["D","Determination","#FF5A52","MUIC is a culture of determination where people keep moving forward with great strength despite challenges and tensions."],
+["O","Originality","#FF9440","MUIC is a culture of originality where novelty and innovation are created on the strong foundation of our heritage."],
+["L","Leadership","#FFD23F","MUIC is a culture where leadership is practiced by all as a way to empower ourselves, set our own path, and step out of our comfort zone."],
+["I","Inclusion","#FF5FA2","MUIC is a culture of inclusiveness where diverse people are accepted and appreciated and this diversity flourishes into a creation greater than the sum of each individual."],
+["C","Connectedness","#5CC8FF","MUIC is a culture of connectedness where professional connections are established with purpose to help bridge our students, our customers, our people, and our MU/MUOL to a greater and wider ecosystem."]];
+V.forEach(v=>{v[3]=v[3].replace(/^MUIC is a culture (?:of \w+ )?where /i,'');v[3]=v[3][0].toUpperCase()+v[3].slice(1);});
+const app=document.getElementById('app');
+const FB_CONFIG={apiKey:"AIzaSyD-mBQ0jyxSeRYyaVmN8ShJBrPmxWxYKmU",authDomain:"draw-your-letter-digital-wall.firebaseapp.com",
+  databaseURL:"https://draw-your-letter-digital-wall-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"draw-your-letter-digital-wall",storageBucket:"draw-your-letter-digital-wall.firebasestorage.app",
+  messagingSenderId:"791054427546",appId:"1:791054427546:web:e1957b12eac678e5804623"};
+const MODERATE=false; // true = a drawing only shows once you set ok:true on it in the Firebase console (student-club approval)
+let db=null;
+try{if(window.firebase&&firebase.database){firebase.initializeApp(FB_CONFIG);db=firebase.database();}}catch(e){db=null;}
+/* ---------- VALUE RUSH: 3-screen tap race (question TV + 2 player touch screens) ---------- */
+const RUSH_WIN=5,RUSH_TIME=12000;
+const rs=()=>db&&db.ref('rush/state');
+function rushShell(html){app.innerHTML='';const v=el(html);app.appendChild(v);return v;}
+function renderRushMenu(){document.body.classList.add('rushMode');
+  const base=location.href.split('#')[0];
+  rushShell(`<div style="padding:6vh 6vw;font:500 18px/1.8 Inter;color:#fff"><h1 style="font-size:34px;margin-bottom:12px">VALUE RUSH</h1>
+   <div class="rtLinks">Open one link per screen:<br><a href="#tv">Question screen (Mac / TV)</a><br><a href="#p1">Player 1 (iPad)</a><br><a href="#p2">Player 2 (iPad)</a><br><span style="color:#9FB6D9;font-size:14px">${base}#tv</span></div></div>`);}
+function renderRushPlayer(pid){
+  const col=pid==='p1'?'#49B6FF':'#FF9A3D',name=pid==='p1'?'PLAYER 1':'PLAYER 2';
+  const v=rushShell(`<div class="rushP" style="--pc:${col}"><div class="rpTop"><b>${name}</b><span id="sc"></span></div><div class="rpMsg" id="msg">Waiting for the question…</div><div class="rpGrid" id="gr"></div></div>`);
+  const gr=v.querySelector('#gr'),msg=v.querySelector('#msg'),sc=v.querySelector('#sc');
+  const tiles=V.map(([L,n,c],i)=>{const b=document.createElement('button');b.className='rpTile';b.style.background=c;b.textContent=L;b.setAttribute('aria-label',L);gr.appendChild(b);return b;});
+  let st={},seen=0,seenRound=-1,locked=false;
+  const who=x=>x==='p1'?'Player 1':'Player 2';
+  function paint(){const playing=st.status==='playing',s=st.scores||{};
+    sc.textContent='P1 '+(s.p1||0)+' \u00B7 P2 '+(s.p2||0);
+    tiles.forEach(b=>b.disabled=!playing||locked);
+    if(!db)msg.textContent='Not connected to the game';
+    else if(playing)msg.textContent=locked?'Wrong letter! Wait a moment\u2026':'GO! Tap the matching letter';
+    else if(st.status==='won')msg.textContent=st.winner===pid?'You were first! '+(st.winMs/1000).toFixed(2)+' s':who(st.winner)+' was first';
+    else if(st.status==='timeout')msg.textContent="Time's up. It was "+V[st.q][0]+' \u00B7 '+V[st.q][1];
+    else if(st.status==='final')msg.textContent=(st.winner===pid?'YOU WIN THE GAME!':who(st.winner)+' wins the game');
+    else msg.textContent='Waiting for the question\u2026';}
+  if(rs())rs().on('value',s=>{const n=s.val()||{};
+    if(n.status==='playing'&&n.round!==seenRound){seenRound=n.round;seen=performance.now();locked=false;}
+    st=n;paint();});
+  tiles.forEach((b,i)=>b.addEventListener('pointerdown',e=>{e.preventDefault();
+    if(st.status!=='playing'||locked||!db)return;
+    const ms=Math.round(performance.now()-seen),round=st.round;
+    if(i!==st.q){locked=true;paint();setTimeout(()=>{locked=false;paint();},1500);return;}
+    rs().transaction(cur=>{if(!cur||cur.status!=='playing'||cur.round!==round)return;
+      cur.status='won';cur.winner=pid;cur.winMs=ms;cur.scores=cur.scores||{p1:0,p2:0};cur.scores[pid]=(cur.scores[pid]||0)+1;return cur;});}));
+  paint();}
+function renderRushTV(){
+  const v=rushShell(`<div class="rushTV"><div class="rtHead"><span>VALUE RUSH</span><small id="rd"></small></div><div class="rtMain" id="mn"></div><div class="rtScore" id="sb"></div></div>`);
+  const mn=v.querySelector('#mn'),sb=v.querySelector('#sb'),rd=v.querySelector('#rd');
+  let st={status:'idle'},timers=[];
+  const clr=()=>{timers.forEach(clearTimeout);timers=[];};
+  const who=x=>x==='p1'?'PLAYER 1':'PLAYER 2';
+  function nextRound(b){const used=(b.used||[]).slice();let pool=V.map((_,i)=>i).filter(i=>!used.includes(i));
+    if(!pool.length){used.length=0;pool=V.map((_,i)=>i);}
+    const q=pool[Math.floor(Math.random()*pool.length)];used.push(q);
+    rs().set({round:Date.now(),n:(b.n||0)+1,q,status:'playing',winner:null,winMs:null,scores:b.scores||{p1:0,p2:0},used});}
+  function newGame(){nextRound({n:0,scores:{p1:0,p2:0},used:[]});}
+  function draw(){const s=st.scores||{p1:0,p2:0};
+    rd.textContent=st.n?('ROUND '+st.n+' \u00B7 FIRST TO '+RUSH_WIN):('FIRST TO '+RUSH_WIN+' WINS');
+    sb.innerHTML='<div class="'+(st.status==='won'&&st.winner==='p1'||st.status==='final'&&st.winner==='p1'?'w':'')+'" style="color:#49B6FF">P1 \u00B7 '+(s.p1||0)+'</div><div class="'+(st.status==='won'&&st.winner==='p2'||st.status==='final'&&st.winner==='p2'?'w':'')+'" style="color:#FF9A3D">P2 \u00B7 '+(s.p2||0)+'</div>';
+    if(!db){mn.innerHTML='<div class="rtQ">Not connected to the game server.</div>';return;}
+    if(st.status==='playing'){mn.innerHTML='<div class="rtLabel">WHICH VALUE?</div><div class="rtQ">\u201C'+V[st.q][3]+'\u201D</div><div class="rtBar"><i id="bar" style="transition:width '+RUSH_TIME+'ms linear"></i></div><div class="rtLabel" style="color:#9FB6D9">Tap the matching letter on your screen</div>';
+      const bar=mn.querySelector('#bar');requestAnimationFrame(()=>requestAnimationFrame(()=>{bar.style.width='0%';}));}
+    else if(st.status==='won'||st.status==='timeout'){const c=V[st.q][2];
+      mn.innerHTML='<div class="rtBig" style="background:'+c+'">'+V[st.q][0]+'</div><div class="rtQ" style="font-size:3vw">'+V[st.q][1]+'</div><div class="rtLabel">'+(st.status==='won'?who(st.winner)+' \u00B7 '+(st.winMs/1000).toFixed(2)+' s':"TIME'S UP")+'</div>';}
+    else if(st.status==='final'){mn.innerHTML='<div class="rtLabel">GAME OVER</div><div class="rtQ" style="font-size:5vw">'+who(st.winner)+' WINS!</div><button class="rtBtn" id="go">PLAY AGAIN</button>';mn.querySelector('#go').onclick=newGame;}
+    else{mn.innerHTML='<div class="rtQ" style="font-size:4.4vw">Smash the value that matches the meaning</div><div class="rtLabel" style="color:#9FB6D9">Open this page with #p1 on iPad 1 and #p2 on iPad 2</div><button class="rtBtn" id="go">START</button>';mn.querySelector('#go').onclick=newGame;}}
+  if(rs())rs().on('value',s=>{st=s.val()||{status:'idle'};clr();draw();
+    if(st.status==='playing'){const r=st.round;timers.push(setTimeout(()=>{rs().transaction(c=>{if(c&&c.status==='playing'&&c.round===r){c.status='timeout';return c;}});},RUSH_TIME));}
+    if(st.status==='won'||st.status==='timeout'){timers.push(setTimeout(()=>{
+      if(st.status==='won'&&(st.scores[st.winner]||0)>=RUSH_WIN)rs().update({status:'final'});else nextRound(st);},3800));}});
+  else draw();}
+
+
+function el(html){const d=document.createElement('div');d.innerHTML=html;return d.firstElementChild;}
+
+
+function route(){const h=(location.hash||'').replace('#','');
+  if(h==='tv')renderRushTV();else if(h==='p1'||h==='p2')renderRushPlayer(h);else renderRushMenu();}
+addEventListener('hashchange',route);
+(document.fonts&&document.fonts.load?document.fonts.load('800 20px Poppins').catch(()=>{}):Promise.resolve()).then(route);route();
+</script>
+</body>
+</html>
