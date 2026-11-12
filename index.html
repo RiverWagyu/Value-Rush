@@ -36,6 +36,7 @@ body.rushMode{padding:0;overflow:hidden;background:#0B1238;-webkit-user-select:n
 .rtScore div{padding:.4vw 3vw;border-radius:1.6vw;border:.35vw solid transparent}
 .rtScore .w{border-color:#FFE58A;background:rgba(255,226,138,.12)}
 .rtVerdict{font:800 8vw Poppins}.rtVerdict.good{color:#5CE08A}.rtVerdict.bad{color:#FF6B6B}
+.rtReset{background:transparent;color:#C2CCE4;border:.2vw solid rgba(255,255,255,.35);border-radius:.8vw;padding:.5vw 1.4vw;font:700 1.3vw Poppins;letter-spacing:.2vw;cursor:pointer}.rtReset:active{background:rgba(255,255,255,.15)}
 .rtLinks a{color:#9FB6D9;font:600 15px Inter}
 </style>
 </head>
@@ -61,7 +62,7 @@ const MODERATE=false; // true = a drawing only shows once you set ok:true on it 
 let db=null;
 try{if(window.firebase&&firebase.database){firebase.initializeApp(FB_CONFIG);db=firebase.database();}}catch(e){db=null;}
 /* ---------- VALUE RUSH: 3-screen tap race (question TV + 2 player touch screens) ---------- */
-const RUSH_WIN=5,RUSH_TIME=5000,RUSH_NEXT=3000;
+const RUSH_WIN=5,RUSH_TIME=10000,RUSH_NEXT=6000;
 const rs=()=>db&&db.ref('rush/state');
 function rushShell(html){app.innerHTML='';const v=el(html);app.appendChild(v);return v;}
 function renderRushMenu(){document.body.classList.add('rushMode');
@@ -97,7 +98,7 @@ function renderRushPlayer(pid){
       return cur;});}));
   paint();}
 function renderRushTV(){
-  const v=rushShell(`<div class="rushTV"><div class="rtHead"><span>VALUE RUSH</span><small id="rd"></small></div><div class="rtMain" id="mn"></div><div class="rtScore" id="sb"></div></div>`);
+  const v=rushShell(`<div class="rushTV"><div class="rtHead"><span>VALUE RUSH</span><span style="display:flex;align-items:center;gap:2vw"><small id="rd"></small><button class="rtReset" id="rst">RESET</button></span></div><div class="rtMain" id="mn"></div><div class="rtScore" id="sb"></div></div>`);
   const mn=v.querySelector('#mn'),sb=v.querySelector('#sb'),rd=v.querySelector('#rd');
   let st={status:'idle'},timers=[];
   const clr=()=>{timers.forEach(clearTimeout);timers=[];};
@@ -106,6 +107,8 @@ function renderRushTV(){
     if(!pool.length){used.length=0;pool=V.map((_,i)=>i);}
     const q=pool[Math.floor(Math.random()*pool.length)];used.push(q);
     rs().set({round:Date.now(),n:(b.n||0)+1,q,status:'playing',winner:null,wrongBy:null,winMs:null,scores:b.scores||{p1:0,p2:0},used});}
+  function resetGame(){clr();rs().set({status:'idle',scores:{p1:0,p2:0},used:[],n:0,round:Date.now()});}
+  v.querySelector('#rst').onclick=resetGame;
   function newGame(){nextRound({n:0,scores:{p1:0,p2:0},used:[]});}
   function draw(){const s=st.scores||{p1:0,p2:0};
     rd.textContent=st.n?('ROUND '+st.n+' \u00B7 FIRST TO '+RUSH_WIN):('FIRST TO '+RUSH_WIN+' WINS');
