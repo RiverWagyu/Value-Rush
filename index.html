@@ -70,7 +70,7 @@ function rushShell(html){app.innerHTML='';const v=el(html);app.appendChild(v);re
 function renderRushMenu(){document.body.classList.add('rushMode');
   const base=location.href.split('#')[0];
   rushShell(`<div style="padding:6vh 6vw;font:500 18px/1.8 Inter;color:#fff"><h1 style="font-size:34px;margin-bottom:12px">VALUE RUSH</h1>
-   <div class="rtLinks">Open one link per screen:<br><a href="#tv">Question screen (Mac / TV)</a><br><a href="#p1">Player 1 (iPad)</a><br><a href="#p2">Player 2 (iPad)</a><br><span style="color:#9FB6D9;font-size:14px">${base}#tv</span></div></div>`);}
+   <div class="rtLinks">Open one link per screen:<br><a href="#tv">Question screen</a><br><a href="#p1">Player 1</a><br><a href="#p2">Player 2</a><br><span style="color:#9FB6D9;font-size:14px">${base}#tv</span></div></div>`);}
 function renderRushPlayer(pid){
   const col=pid==='p1'?'#49B6FF':'#FF9A3D',name=pid==='p1'?'PLAYER 1':'PLAYER 2';
   const v=rushShell(`<div class="rushP" style="--pc:${col}"><div class="rpTop"><b>${name}</b><span id="sc"></span></div><div class="rpMsg" id="msg">Waiting for the question…</div><div class="rpGrid" id="gr"></div></div>`);
@@ -123,7 +123,7 @@ function renderRushTV(){
     else if(st.status==='wrong'){mn.innerHTML='<div class="rtVerdict bad">NOT CORRECT</div><div class="rtLabel">'+who(st.wrongBy)+' tapped the wrong letter</div><div class="rtLabel" style="color:#9FB6D9">Answer: '+V[st.q][0]+' \u00B7 '+V[st.q][1]+'</div>';}
     else if(st.status==='timeout'){mn.innerHTML='<div class="rtVerdict bad" style="color:#FFD23F">TIME\'S UP</div><div class="rtLabel" style="color:#9FB6D9">Answer: '+V[st.q][0]+' \u00B7 '+V[st.q][1]+'</div>';}
     else if(st.status==='final'){mn.innerHTML='<div class="rtLabel">GAME OVER</div><div class="rtQ" style="font-size:5vw">'+who(st.winner)+' WINS!</div><button class="rtBtn" id="go">PLAY AGAIN</button>';mn.querySelector('#go').onclick=newGame;}
-    else{mn.innerHTML='<div class="rtQ" style="font-size:4.4vw">Smash the value that matches the meaning</div><div class="rtLabel" style="color:#9FB6D9">Open this page with #p1 on iPad 1 and #p2 on iPad 2</div><button class="rtBtn" id="go">START</button>';mn.querySelector('#go').onclick=newGame;}}
+    else{mn.innerHTML='<div class="rtQ" style="font-size:4.4vw">Smash the value that matches the meaning</div><div class="rtLabel" style="color:#9FB6D9">Player 1 opens #p1 &middot; Player 2 opens #p2</div><button class="rtBtn" id="go">START</button>';mn.querySelector('#go').onclick=newGame;}}
   if(rs())rs().on('value',s=>{st=s.val()||{status:'idle'};clr();draw();
     if(st.status==='playing'){const r=st.round;timers.push(setTimeout(()=>{rs().transaction(c=>{if(c&&c.status==='playing'&&c.round===r){c.status='timeout';return c;}});},RUSH_TIME));}
     if(st.status==='won'||st.status==='wrong'||st.status==='timeout'){timers.push(setTimeout(()=>{
